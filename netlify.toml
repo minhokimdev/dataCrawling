@@ -1,0 +1,8 @@
+# 대시보드(web/)만 정적 배포한다. 파이썬 파이프라인은 배포 대상이 아니다.
+[build]
+  base = "web"
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
