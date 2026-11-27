@@ -1,0 +1,38 @@
+[project]
+name = "coolroof-busan"
+version = "0.1.0"
+description = "부산시 하얀지붕(쿨루프) 미발굴 후보 건물 발굴 파이프라인 (데이터크롤링 12조)"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.2",
+    "geopandas>=1.0",
+    "shapely>=2.0",
+    "pyproj>=3.6",
+    "scipy>=1.13",
+    "pillow>=10.0",
+    "rasterio>=1.3",
+    "requests>=2.32",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0",
+    "playwright>=1.47",
+    "folium>=0.17",
+]
+
+[project.optional-dependencies]
+model = ["torch>=2.3", "segmentation-models-pytorch>=0.3.4"]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+coolroof = "coolroof.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/coolroof"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

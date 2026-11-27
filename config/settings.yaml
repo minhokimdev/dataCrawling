@@ -1,0 +1,105 @@
+# 시범 분석 설정. "TODO(착수)" 항목은 기획안 2장 게이트에서 확인 후 확정한다.
+
+pilot:
+  sido: 부산광역시
+  # TODO(착수): 시범 구는 착수 2주 내 확정. 아래는 예시값.
+  gu_name: 사하구
+  sigungu_cd: "26380"
+  # 크롤링 탐색 범위(WGS84 lon/lat). SGIS 경계를 받으면 그 경계의 bbox로 덮어써도 된다.
+  bbox_wgs84: [128.92, 35.03, 129.01, 35.13]
+  analysis_base_date: null   # 분석 기준일 (YYYY-MM-DD)
+  image_date: null           # 정사영상 촬영일 (YYYY-MM-DD)
+
+# 분석 지역 범위: 부산광역시로 한정(2026-11-27 결정). scope_sigungu_cd 를 비우면 부산 전역,
+# 5자리 시군구코드를 넣으면 그 구만 점수화한다. pilot 은 경로당 크롤링·API 시범 호출 범위.
+analysis:
+  scope_name: 전역            # 화면 표기: "부산 전역"
+  scope_sigungu_cd: null
+
+crs:
+  web: "EPSG:3857"
+  wgs84: "EPSG:4326"
+  work: "EPSG:5186"          # 면적·거리 계산용 (중부원점 GRS80)
+
+paths:
+  raw: data/raw
+  interim: data/interim
+  processed: data/processed
+  labels: data/labels
+  outputs: outputs
+
+api:
+  building_register_base: https://apis.data.go.kr/1613000/BldRgstHubService
+  # TODO(착수): 시험 호출로 엔드포인트·typename 확정 (data.go.kr 15123552)
+  gis_building_wfs: https://apis.data.go.kr/1611000/nsdi/GisBuildingService/wfs/getGisGnrlBuildingWFS
+  gis_building_typename: F253
+  sgis_base: https://sgisapi.kostat.go.kr/OpenAPI3
+  sgis_year: "2023"
+  request_interval_sec: 0.3
+
+crawler:
+  url: https://data.busan.go.kr/bdip/opendata/mapBasedData.do
+  layer_id: TL_SENIOR_CENTER     # 공공데이터 지도 > 사회복지 > 경로당 현황
+  zoom: 17
+  click_wait_ms: 4000           # 정보창 응답 대기 (사이트 안내: 조회 시간이 오래 걸릴 수 있음)
+  max_cells: 400
+  # 정보창 키 → 표준 필드 매핑 후보 (실제 화면 항목명 확인 후 보완)
+  name_keys: [시설명, 경로당명, 명칭, 이름]
+  address_keys: [주소, 소재지, 도로명주소, 지번주소, 소재지도로명주소]
+  category_keys: [분류, 구분, 시설종류]
+
+# GIS건물통합정보 SHP(15083092) 컬럼 매핑.
+# TODO(착수): 실제 내려받은 파일의 컬럼명으로 확인. 아래는 AL_D010 레이아웃 기준 추정값.
+gis_fields:
+  gis_id: A1
+  pnu: A2
+  usage_name: A9
+  arch_area: A12
+  use_apr_day: A13
+  building_name: A24
+  dong_name: A25
+  ground_floors: A26
+  base_date: A22
+
+join:
+  area_ratio_ok: 0.7         # 도형면적/대장 건축면적 비율이 [0.7, 1/0.7] 이면 정합
+  unique_margin: 0.15        # 다중 후보 시 1·2위 점수 차가 이 값 이상이어야 자동 매칭
+  facility_snap_m: 10        # 시설 좌표가 도형 밖일 때 허용 거리
+
+# 1차 제외 기준: 대장상 명백히 대상 용도가 아닌 건물. 세부 자격 용도는 연도별 공고 확인 후 관리.
+target_usages: [단독주택, 공동주택, 노유자시설, 제1종근린생활시설]
+
+scoring:
+  weights:
+    physical: 0.40
+    region_need: 0.35
+    non_support: 0.15
+    reliability: 0.10
+  sensitivity: 0.20          # ±20% 가중치 변화
+  top_n: 50
+  # 지역 필요도: 팀 수집 SGIS 통계주제도 행정동 집계(65세 이상 인구, 고령 1인가구)의 면적당 밀도.
+  # 원 수치는 행정동 규모에 비례해 큰 동(기장읍·금곡동 등)이 독식하므로 밀도를 쓴다. 비율은 총인구 미확보로 불가.
+  # 폭염 지표는 AWS 관측소-구 대응(부산(레)=구덕산 고지대 등)을 확정한 뒤 추가.
+  region_need_cols: [senior_population_per_km2, senior_single_households_per_km2]
+  reliability_by_grade: {A: 100, B: 60, C: 20}
+
+roof:
+  patch_size: 512
+  margin_ratio: 0.25
+  min_building_px: 200
+  # 규칙 기반 기준선 임계값 (시범 표본 판독으로 재조정)
+  shadow_v: 0.18
+  white_s: 0.15
+  white_v: 0.75
+  pitched_half_diff: 0.08
+  unreadable_shadow_ratio: 0.5
+
+model:
+  arch: unet                 # unet | segformer
+  encoder: resnet34
+  classes: [background, flat_visible, pitched, equipment, shadow_occlusion]
+  epochs: 60
+  batch_size: 8
+  lr: 0.0003
+  seed: 42
+  split: {train: 0.6, val: 0.2, test: 0.2, block_size_m: 300}
